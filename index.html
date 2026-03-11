@@ -207,7 +207,6 @@
       const callsRef = collection(db, "orders", CLIENT_ID, "calls");
       const pendingOrdersQuery = query(
         callsRef,
-        where("order_status", "in", ["pending", null]),
         orderBy("updated_at", "desc")
       );
 
@@ -218,10 +217,36 @@
 
         const ticket = document.createElement("article");
         ticket.className = "ticket";
+        // Ticket aging color logic
+        if (data.updated_at) {
+          const ageMinutes =
+            (Date.now() - new Date(data.updated_at).getTime()) / 60000;
+        
+          if (ageMinutes > 6) {
+            ticket.style.borderColor = "#ef4444";
+            ticket.style.background = "#2a1212";
+          } else if (ageMinutes > 3) {
+            ticket.style.borderColor = "#facc15";
+            ticket.style.background = "#2a250e";
+          }
+        }
 
         const callId = document.createElement("h2");
         callId.className = "call-id";
         callId.textContent = `CALL: ${orderDoc.id}`;
+
+        // Ticket age label
+        let ageLabel = null;
+        
+        if (data.updated_at) {
+          const ageSeconds =
+            Math.floor((Date.now() - new Date(data.updated_at).getTime()) / 1000);
+        
+          ageLabel = document.createElement("div");
+          ageLabel.style.fontSize = "0.95rem";
+          ageLabel.style.color = "#c8c8c8";
+          ageLabel.textContent = `Age: ${Math.floor(ageSeconds / 60)}m ${ageSeconds % 60}s`;
+        }
 
         const customer = document.createElement("p");
         customer.className = "customer";
@@ -294,7 +319,7 @@
           }
         });
 
-        ticket.append(callId, customer, itemsList, completeBtn);
+        ticket.append(callId, ageLabel, customer, itemsList, completeBtn);
         return ticket;
       }
 
@@ -302,8 +327,17 @@
       onSnapshot(
         pendingOrdersQuery,
         (snapshot) => {
-          statusEl.textContent = `Live: ${snapshot.size} pending order${
-            snapshot.size === 1 ? "" : "s"
+          let pendingCount = 0;
+          
+          snapshot.forEach((doc) => {
+            const d = doc.data();
+            if (!d.order_status || d.order_status === "pending") {
+              pendingCount++;
+            }
+          });
+          
+          statusEl.textContent = `Live: ${pendingCount} pending order${
+            pendingCount === 1 ? "" : "s"
           }`;
           statusEl.classList.remove("error");
 
@@ -318,6 +352,12 @@
           }
 
           snapshot.forEach((orderDoc) => {
+            const data = orderDoc.data();
+          
+            if (data.order_status && data.order_status !== "pending") {
+              return;
+            }
+          
             ticketsEl.appendChild(buildTicket(orderDoc));
           });
         },
