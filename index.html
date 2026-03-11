@@ -186,15 +186,15 @@
        *    orders/{client_id}/calls/{call_id}
        */
       const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_AUTH_DOMAIN",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_STORAGE_BUCKET",
-        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-        appId: "YOUR_APP_ID",
+        apiKey: "AIzaSy...",
+        authDomain: "ai-voice-agent-14f7e.firebaseapp.com",
+        projectId: "ai-voice-agent-14f7e",
+        storageBucket: "ai-voice-agent-14f7e.firebasestorage.app",
+        messagingSenderId: "1004567405229",
+        appId: "1:1004567405229:web:24b80ef62d621abdc7dc24"
       };
 
-      const CLIENT_ID = "YOUR_CLIENT_ID";
+      const CLIENT_ID = "naomi_sushi";
 
       const statusEl = document.getElementById("status");
       const ticketsEl = document.getElementById("tickets");
@@ -207,7 +207,7 @@
       const callsRef = collection(db, "orders", CLIENT_ID, "calls");
       const pendingOrdersQuery = query(
         callsRef,
-        where("order_status", "==", "pending"),
+        where("order_status", "in", ["pending", null]),
         orderBy("updated_at", "desc")
       );
 
