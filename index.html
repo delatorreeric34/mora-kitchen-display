@@ -135,7 +135,6 @@
         font-size: 1.05rem;
       }
 
-      .complete-btn {
       .action-btn {
         margin-top: auto;
         border: none;
@@ -348,43 +347,28 @@
           itemsList.appendChild(fallback);
         }
 
-        const completeBtn = document.createElement("button");
-        completeBtn.className = "complete-btn";
-        completeBtn.type = "button";
-        completeBtn.textContent = "COMPLETE";
         const actionBtn = document.createElement("button");
         actionBtn.className = `action-btn ${isCompleted ? "undo-btn" : "complete-btn"}`;
         actionBtn.type = "button";
         actionBtn.textContent = isCompleted ? "UNDO" : "COMPLETE";
-
+        
         actionBtn.addEventListener("click", async () => {
           actionBtn.disabled = true;
-
+        
           const nextStatus = isCompleted ? "pending" : "completed";
           actionBtn.textContent = isCompleted ? "Undoing..." : "Completing...";
-
-        completeBtn.addEventListener("click", async () => {
-          completeBtn.disabled = true;
-          completeBtn.textContent = "Completing...";
+        
           try {
-            // Mark this order as completed in Firestore.
-            await updateDoc(orderDoc.ref, { order_status: "completed" });
             await updateDoc(orderDoc.ref, { order_status: nextStatus });
           } catch (error) {
-            console.error("Failed to complete order:", error);
             console.error("Failed to update order:", error);
-            statusEl.textContent = "Could not update order. Check console.";
-            statusEl.classList.add("error");
-            completeBtn.disabled = false;
-            completeBtn.textContent = "COMPLETE";
             actionBtn.disabled = false;
             actionBtn.textContent = isCompleted ? "UNDO" : "COMPLETE";
           }
         });
-
-        ticket.append(callId, ageLabel, customer, itemsList, completeBtn);
-        ticket.append(callId, ageLabel, customer, itemsList, actionBtn);
-        return ticket;
+        
+      ticket.append(callId, ageLabel, customer, itemsList, actionBtn);
+      return ticket;
       }
 
       // Real-time listener for incoming pending orders.
@@ -399,38 +383,26 @@
       onSnapshot(
         ordersQuery,
         (snapshot) => {
-          let pendingCount = 0;
-          
+      
           const pendingDocs = [];
           const completedDocs = [];
-
+      
           snapshot.forEach((doc) => {
             const data = doc.data();
-          
+      
             if (data.order_status === "completed") {
               completedDocs.push(doc);
             } else {
-              // Treat null/undefined as pending
               pendingDocs.push(doc);
             }
           });
-          
-          statusEl.textContent = `Live: ${pendingCount} pending order${
-            pendingCount === 1 ? "" : "s"
-          }`;
-
-          statusEl.textContent = `Live: ${pendingDocs.length} pending • ${completedDocs.length} completed`;
-          statusEl.classList.remove("error");
-
+      
+          statusEl.textContent =
+            `Live: ${pendingDocs.length} pending • ${completedDocs.length} completed`;
+      
           pendingTicketsEl.innerHTML = "";
           completedTicketsEl.innerHTML = "";
-
-          if (snapshot.empty) {
-            const emptyState = document.createElement("div");
-            emptyState.className = "empty";
-            emptyState.textContent = "No pending orders right now.";
-            ticketsEl.appendChild(emptyState);
-            return;
+      
           if (pendingDocs.length === 0) {
             renderEmptyState(pendingTicketsEl, "No pending orders right now.");
           } else {
@@ -438,16 +410,7 @@
               pendingTicketsEl.appendChild(buildTicket(orderDoc, false));
             });
           }
-
-          snapshot.forEach((orderDoc) => {
-            const data = orderDoc.data();
-          
-            if (data.order_status && data.order_status !== "pending") {
-              return;
-            }
-          
-            ticketsEl.appendChild(buildTicket(orderDoc));
-          });
+      
           if (completedDocs.length === 0) {
             renderEmptyState(completedTicketsEl, "No completed orders yet.");
           } else {
@@ -455,10 +418,12 @@
               completedTicketsEl.appendChild(buildTicket(orderDoc, true));
             });
           }
+      
         },
         (error) => {
           console.error("Firestore listener error:", error);
-          statusEl.textContent = "Connection error. Check Firebase config + indexes.";
+          statusEl.textContent =
+            "Connection error. Check Firebase config + indexes.";
           statusEl.classList.add("error");
         }
       );
