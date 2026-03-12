@@ -249,7 +249,6 @@
       const CLIENT_ID = "naomi_sushi";
 
       const statusEl = document.getElementById("status");
-      const ticketsEl = document.getElementById("tickets");
       const pendingTicketsEl = document.getElementById("pending-tickets");
       const completedTicketsEl = document.getElementById("completed-tickets");
 
@@ -264,7 +263,6 @@
       const ordersQuery = query(callsRef, orderBy("updated_at", "desc"));
 
       // Render helper for one ticket card.
-      function buildTicket(orderDoc) {
       function buildTicket(orderDoc, isCompleted) {
         const data = orderDoc.data();
         const items = Array.isArray(data.items_ordered) ? data.items_ordered : [];
@@ -407,14 +405,12 @@
           const completedDocs = [];
 
           snapshot.forEach((doc) => {
-            const d = doc.data();
-            if (!d.order_status || d.order_status === "pending") {
-              pendingCount++;
             const data = doc.data();
+          
             if (data.order_status === "completed") {
               completedDocs.push(doc);
             } else {
-              // Treat null/undefined as pending.
+              // Treat null/undefined as pending
               pendingDocs.push(doc);
             }
           });
@@ -426,7 +422,6 @@
           statusEl.textContent = `Live: ${pendingDocs.length} pending • ${completedDocs.length} completed`;
           statusEl.classList.remove("error");
 
-          ticketsEl.innerHTML = "";
           pendingTicketsEl.innerHTML = "";
           completedTicketsEl.innerHTML = "";
 
