@@ -14,6 +14,8 @@
         --accent: #22c55e;
         --accent-pressed: #16a34a;
         --danger: #ef4444;
+        --undo: #f59e0b;
+        --undo-pressed: #d97706;
       }
 
       * {
@@ -30,7 +32,7 @@
       }
 
       .app {
-        max-width: 1200px;
+        max-width: 1400px;
         margin: 0 auto;
         padding: 1rem;
       }
@@ -59,9 +61,29 @@
         color: var(--danger);
       }
 
+      .columns {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+      }
+
+      .column {
+        background: #161616;
+        border: 2px solid var(--surface-border);
+        border-radius: 14px;
+        padding: 0.9rem;
+      }
+
+      .column-title {
+        margin: 0 0 0.75rem;
+        font-size: 1.2rem;
+        letter-spacing: 0.02em;
+      }
+
       .tickets {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        grid-template-columns: 1fr;
         gap: 1rem;
       }
 
@@ -87,9 +109,7 @@
         font-size: 1.15rem;
         line-height: 1.35;
       }
-
-      .items {
-        list-style: none;
+@@ -93,177 +114,202 @@
         padding: 0;
         margin: 1rem 0;
         flex: 1;
@@ -116,6 +136,7 @@
       }
 
       .complete-btn {
+      .action-btn {
         margin-top: auto;
         border: none;
         background: var(--accent);
@@ -129,8 +150,22 @@
         touch-action: manipulation;
       }
 
+      .complete-btn {
+        background: var(--accent);
+        color: #001204;
+      }
+
       .complete-btn:active {
         background: var(--accent-pressed);
+      }
+
+      .undo-btn {
+        background: var(--undo);
+        color: #221400;
+      }
+
+      .undo-btn:active {
+        background: var(--undo-pressed);
       }
 
       .empty {
@@ -144,6 +179,12 @@
         color: var(--muted);
       }
 
+      @media (max-width: 980px) {
+        .columns {
+          grid-template-columns: 1fr;
+        }
+      }
+
       @media (max-width: 600px) {
         .app {
           padding: 0.75rem;
@@ -154,6 +195,7 @@
         }
 
         .complete-btn {
+        .action-btn {
           font-size: 1.15rem;
         }
       }
@@ -165,7 +207,17 @@
         <h1>Kitchen POS Display</h1>
         <p id="status" class="status">Connecting to Firestore...</p>
       </header>
-      <section id="tickets" class="tickets" aria-live="polite"></section>
+
+      <section class="columns" aria-live="polite">
+        <div class="column">
+          <h2 class="column-title">Pending Orders</h2>
+          <section id="pending-tickets" class="tickets"></section>
+        </div>
+        <div class="column">
+          <h2 class="column-title">Completed Orders</h2>
+          <section id="completed-tickets" class="tickets"></section>
+        </div>
+      </section>
     </main>
 
     <script type="module">
@@ -198,27 +250,30 @@
 
       const statusEl = document.getElementById("status");
       const ticketsEl = document.getElementById("tickets");
+      const pendingTicketsEl = document.getElementById("pending-tickets");
+      const completedTicketsEl = document.getElementById("completed-tickets");
 
       // Initialize Firebase app + Firestore.
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
 
       // Build query: pending orders only, newest updated_at first.
+      // Keep query location under orders/{client_id}/calls and live updates.
       const callsRef = collection(db, "orders", CLIENT_ID, "calls");
-      const pendingOrdersQuery = query(
-        callsRef,
-        orderBy("updated_at", "desc")
-      );
+
+      const ordersQuery = query(callsRef, orderBy("updated_at", "desc"));
 
       // Render helper for one ticket card.
       function buildTicket(orderDoc) {
+      function buildTicket(orderDoc, isCompleted) {
         const data = orderDoc.data();
         const items = Array.isArray(data.items_ordered) ? data.items_ordered : [];
 
         const ticket = document.createElement("article");
         ticket.className = "ticket";
-        // Ticket aging color logic
-        if (data.updated_at) {
+
+        // Ticket aging color logic (only for pending orders)
+        if (!isCompleted && data.updated_at) {
           const ageMinutes =
             (Date.now() - new Date(data.updated_at).getTime()) / 60000;
         
@@ -238,10 +293,12 @@
         // Ticket age label
         let ageLabel = null;
         
-        if (data.updated_at) {
+
+        if (!isCompleted && data.updated_at) {
           const ageSeconds =
             Math.floor((Date.now() - new Date(data.updated_at).getTime()) / 1000);
         
+
           ageLabel = document.createElement("div");
           ageLabel.style.fontSize = "0.95rem";
           ageLabel.style.color = "#c8c8c8";
@@ -267,13 +324,7 @@
           const sizePrefix = item.size ? `${item.size} ` : "";
           title.textContent = `${qty} ${sizePrefix}${item.name || "Unnamed item"}`;
           itemLi.appendChild(title);
-
-          const details = [];
-          if (Array.isArray(item.modifiers)) {
-            item.modifiers.forEach((modifier) => details.push(`+ ${modifier}`));
-          }
-          if (Array.isArray(item.customizations)) {
-            item.customizations.forEach((customization) =>
+@@ -277,96 +323,106 @@
               details.push(`* ${customization}`)
             );
           }
@@ -303,6 +354,16 @@
         completeBtn.className = "complete-btn";
         completeBtn.type = "button";
         completeBtn.textContent = "COMPLETE";
+        const actionBtn = document.createElement("button");
+        actionBtn.className = `action-btn ${isCompleted ? "undo-btn" : "complete-btn"}`;
+        actionBtn.type = "button";
+        actionBtn.textContent = isCompleted ? "UNDO" : "COMPLETE";
+
+        actionBtn.addEventListener("click", async () => {
+          actionBtn.disabled = true;
+
+          const nextStatus = isCompleted ? "pending" : "completed";
+          actionBtn.textContent = isCompleted ? "Undoing..." : "Completing...";
 
         completeBtn.addEventListener("click", async () => {
           completeBtn.disabled = true;
@@ -310,38 +371,64 @@
           try {
             // Mark this order as completed in Firestore.
             await updateDoc(orderDoc.ref, { order_status: "completed" });
+            await updateDoc(orderDoc.ref, { order_status: nextStatus });
           } catch (error) {
             console.error("Failed to complete order:", error);
+            console.error("Failed to update order:", error);
             statusEl.textContent = "Could not update order. Check console.";
             statusEl.classList.add("error");
             completeBtn.disabled = false;
             completeBtn.textContent = "COMPLETE";
+            actionBtn.disabled = false;
+            actionBtn.textContent = isCompleted ? "UNDO" : "COMPLETE";
           }
         });
 
         ticket.append(callId, ageLabel, customer, itemsList, completeBtn);
+        ticket.append(callId, ageLabel, customer, itemsList, actionBtn);
         return ticket;
       }
 
       // Real-time listener for incoming pending orders.
+      function renderEmptyState(container, message) {
+        const emptyState = document.createElement("div");
+        emptyState.className = "empty";
+        emptyState.textContent = message;
+        container.appendChild(emptyState);
+      }
+
+      // Real-time listener for incoming orders.
       onSnapshot(
-        pendingOrdersQuery,
+        ordersQuery,
         (snapshot) => {
           let pendingCount = 0;
           
+          const pendingDocs = [];
+          const completedDocs = [];
+
           snapshot.forEach((doc) => {
             const d = doc.data();
             if (!d.order_status || d.order_status === "pending") {
               pendingCount++;
+            const data = doc.data();
+            if (data.order_status === "completed") {
+              completedDocs.push(doc);
+            } else {
+              // Treat null/undefined as pending.
+              pendingDocs.push(doc);
             }
           });
           
           statusEl.textContent = `Live: ${pendingCount} pending order${
             pendingCount === 1 ? "" : "s"
           }`;
+
+          statusEl.textContent = `Live: ${pendingDocs.length} pending • ${completedDocs.length} completed`;
           statusEl.classList.remove("error");
 
           ticketsEl.innerHTML = "";
+          pendingTicketsEl.innerHTML = "";
+          completedTicketsEl.innerHTML = "";
 
           if (snapshot.empty) {
             const emptyState = document.createElement("div");
@@ -349,6 +436,12 @@
             emptyState.textContent = "No pending orders right now.";
             ticketsEl.appendChild(emptyState);
             return;
+          if (pendingDocs.length === 0) {
+            renderEmptyState(pendingTicketsEl, "No pending orders right now.");
+          } else {
+            pendingDocs.forEach((orderDoc) => {
+              pendingTicketsEl.appendChild(buildTicket(orderDoc, false));
+            });
           }
 
           snapshot.forEach((orderDoc) => {
@@ -360,6 +453,13 @@
           
             ticketsEl.appendChild(buildTicket(orderDoc));
           });
+          if (completedDocs.length === 0) {
+            renderEmptyState(completedTicketsEl, "No completed orders yet.");
+          } else {
+            completedDocs.forEach((orderDoc) => {
+              completedTicketsEl.appendChild(buildTicket(orderDoc, true));
+            });
+          }
         },
         (error) => {
           console.error("Firestore listener error:", error);
