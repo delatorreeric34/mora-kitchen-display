@@ -255,6 +255,10 @@
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
 
+      import { connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+      connectFirestoreEmulator(db, "localhost", 8080);
+
       // Build query: pending orders only, newest updated_at first.
       // Keep query location under orders/{client_id}/calls and live updates.
       const callsRef = collection(db, "orders", CLIENT_ID, "calls");
