@@ -384,6 +384,8 @@
         ordersQuery,
         (snapshot) => {
       
+          console.log("🔥 DOC COUNT:", snapshot.size); // ✅ ADD THIS LINE
+          
           const pendingDocs = [];
           const completedDocs = [];
       
