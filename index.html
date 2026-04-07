@@ -259,7 +259,7 @@
       // Keep query location under orders/{client_id}/calls and live updates.
       const callsRef = collection(db, "orders", CLIENT_ID, "calls");
 
-      const ordersQuery = query(callsRef, orderBy("updated_at", "desc"));
+      const ordersQuery = callsRef;
 
       // Render helper for one ticket card.
       function buildTicket(orderDoc, isCompleted) {
